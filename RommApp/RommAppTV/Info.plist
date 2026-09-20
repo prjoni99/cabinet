@@ -32,6 +32,20 @@
 			</array>
 		</dict>
 	</array>
+	<!-- Dark, whatever the system appearance says. This shell is built
+	     on one ambient backdrop, the cover of whatever played last,
+	     blurred past recognition and darkened so text and glass always
+	     have a floor. Light chrome over that canvas is unreadable, which
+	     is what tvOS set to Light produced. Same position the Mac takes
+	     in MacWindowStyler and Apple's own TV app and Music's Now
+	     Playing take: the canvas is the app's, not the system's.
+	     Decided 2026-09-20 over the alternative of a real light
+	     treatment for the art; see docs/settled.md. Apple's
+	     Information Property List reference lists this key for tvOS 10
+	     and later and says the app then ignores changes to the
+	     systemwide style. -->
+	<key>UIUserInterfaceStyle</key>
+	<string>Dark</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

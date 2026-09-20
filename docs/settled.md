@@ -96,3 +96,30 @@ only helps at home.
 
 Full reasoning, the six design questions this went through, and the test
 plan for if it's ever revisited: [docs/scope-icloud-pairing-continuity.md](scope-icloud-pairing-continuity.md).
+
+## Light appearance on the screens that carry ambient art
+
+**Settled: dark, on both, 2026-09-20.** Cabinet TV and Cabinet for Mac
+draw one backdrop behind everything, the cover of whatever you played
+last, blurred past recognition and darkened so text and glass always
+have a floor. That canvas is dark by construction, so following a Light
+system appearance turned the chrome dark against a dark background and
+made the text hard to read. The Mac already pinned itself to dark in
+`MacWindowStyler`; the Apple TV followed the system, and that is where
+the problem showed.
+
+The other way out was a real light treatment, a bright washed version
+of the art rather than a darkened one, so both platforms could honour
+the setting. Not taken. It is a design piece that has to look right on
+a television and on a desk, and it would trade the one thing the
+ambient shell is for, the game's own colours filling the room, for a
+preference the platform's own media apps also ignore: the TV app and
+Music's Now Playing are dark whatever the system says. tvOS now carries
+`UIUserInterfaceStyle` set to Dark in its Info.plist, which Apple
+documents as the app ignoring changes to the systemwide style. iPhone
+is unaffected either way: its ambient backdrop is confined to the game
+launch screen and the rest of its shell is ordinary iOS chrome that
+follows the system.
+
+Revisit only if the light treatment gets designed and looks right on
+both screens, not because honouring the setting would be tidy.
