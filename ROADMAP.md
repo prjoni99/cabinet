@@ -84,12 +84,15 @@ worth having in the open.
 - **A native touch control restyle.** The current on-screen controls are
   functional but read a little flat next to the rest of the app. A
   restyle direction has been discussed, not built.
-- **A real loading screen on tvOS for large downloads.** Right now the
-  Play button's own label just turns into a percentage while a native
-  game downloads, on a short game that can flash by in under a second.
-  The idea is a proper full-screen moment for genuinely large
-  downloads, small ones would keep today's quick inline behavior. Not
-  settled whether to build it at all, let alone how.
+- **A real loading screen on tvOS for large downloads.** Built
+  2026-09-20. A game over a hundred megabytes that is not already on
+  the Apple TV gets the whole screen while it comes down, the cover in
+  the centre with a real bar and "340 MB of 1.2 GB" under it, and Back
+  stops the download and returns to the launch screen. Anything
+  smaller, every cartridge, keeps the quick inline behaviour, the Play
+  button's own label carrying the wait, since that is under a second on
+  a home network and a full screen would only flash. Waiting on a
+  release.
 - **Multi-disc games.** Waiting on a real one. It would need `.m3u`-style
   disc swapping in the player, which the libretro cores already
   understand, and any disc system could meet it, PlayStation and Saturn

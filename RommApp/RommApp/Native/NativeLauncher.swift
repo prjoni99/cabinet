@@ -102,9 +102,7 @@ enum NativeLauncher {
         // first run needs no re-fetch either) until the OS actually
         // reclaims the space, at which point this falls straight back to
         // downloading fresh with no special handling needed.
-        let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("native-rom-cache", isDirectory: true)
-            .appendingPathComponent(String(rom.id), isDirectory: true)
+        let cacheDir = cacheDirectory(romId: rom.id)
         let cachedROMURL = cacheDir.appendingPathComponent(rom.fsName)
         if FileManager.default.fileExists(atPath: cachedROMURL.path) {
             return try await finishLaunch(
@@ -706,6 +704,24 @@ enum NativeLauncher {
         }
     }
 
+    #if os(tvOS)
+    /// The soft cache `prepare` keeps per game on tvOS; see its note there.
+    static func cacheDirectory(romId: Int) -> URL {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("native-rom-cache", isDirectory: true)
+            .appendingPathComponent(String(romId), isDirectory: true)
+    }
+
+    /// Whether `prepare` would boot this game without a download. The
+    /// launch screen asks before deciding how much screen to give the
+    /// wait: a large game already here starts in a beat, and a full
+    /// screen loading moment that flashed past would read as a glitch.
+    static func isCached(rom: Rom) -> Bool {
+        FileManager.default.fileExists(
+            atPath: cacheDirectory(romId: rom.id).appendingPathComponent(rom.fsName).path)
+    }
+    #endif
+
     /// Removes every temp directory a native launch ever created. Called
     /// on the way into a new launch and on the way out of the player, so
     /// an un-kept game's files live exactly as long as its session instead
@@ -736,15 +752,35 @@ enum NativeLauncher {
     /// used before, purely to get `didWriteData`'s byte counts for
     /// `onProgress`: the launch button used to just spin with no signal
     /// on a large title, indistinguishable from a stall.
+    ///
+    /// Honours the calling task's cancellation, added 2026-09-20 for
+    /// the tvOS loading screen, where Back has to stop a gigabyte
+    /// coming down rather than leave it running behind the launch
+    /// screen. Every other caller runs in an unstructured task nothing
+    /// cancels, so for them this path is byte-identical: the handler
+    /// only ever fires on cancel. A cancelled download surfaces as
+    /// `CancellationError`, which callers can tell from a real failure.
     private static func download(
         _ request: URLRequest, to url: URL, onProgress: @escaping @MainActor (Double) -> Void = { _ in }
     ) async throws {
+        try Task.checkCancellation()
         let delegate = ProgressDelegate(onProgress: onProgress)
         let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
         defer { session.finishTasksAndInvalidate() }
-        let (tempURL, response) = try await withCheckedThrowingContinuation { continuation in
-            delegate.completion = { continuation.resume(with: $0) }
-            session.downloadTask(with: request).resume()
+        let task = session.downloadTask(with: request)
+        let (tempURL, response): (URL, URLResponse)
+        do {
+            (tempURL, response) = try await withTaskCancellationHandler {
+                try await withCheckedThrowingContinuation { continuation in
+                    delegate.completion = { continuation.resume(with: $0) }
+                    task.resume()
+                }
+            } onCancel: {
+                task.cancel()
+            }
+        } catch {
+            if Task.isCancelled { throw CancellationError() }
+            throw error
         }
         if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
             try? FileManager.default.removeItem(at: tempURL)

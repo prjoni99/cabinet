@@ -32,6 +32,20 @@ struct TVGameLaunchView: View {
     @State private var progress: Double = 0
     @State private var error: String?
     @State private var launch: Launch?
+    /// The download in flight, held so Back can stop it. Cancelling it
+    /// reaches `NativeLauncher`'s download, which honours it.
+    @State private var playTask: Task<Void, Never>?
+    /// Whether this launch gets the whole screen while it downloads.
+    /// Decided once when Play is pressed, not recomputed, so the screen
+    /// does not change shape as the file lands.
+    @State private var fullScreenWait = false
+
+    /// Above this a download gets a real loading screen; below it the
+    /// Play button's own label carries the wait, which for a cartridge
+    /// on a home network is under a second and would only flash. A
+    /// hundred megabytes is the line no cartridge crosses (the largest
+    /// N64 game is 64) and every disc does.
+    private static let largeDownloadBytes: Int64 = 100 * 1024 * 1024
     /// Mirrors NativeCoreChoice so the emulator row's label updates the
     /// moment it is clicked; the store itself is the source of truth.
     @State private var chosenCore: NativeCore?
@@ -95,65 +109,74 @@ struct TVGameLaunchView: View {
                 .overlay(Color.black.opacity(0.55))
                 .ignoresSafeArea()
 
-            HStack(alignment: .center, spacing: 60) {
-                CoverImage(path: coverPath, title: rom.displayName)
-                    .frame(width: 340, height: 460)
-                    .clipShape(.rect(cornerRadius: 16))
-                    .shadow(radius: 24, y: 12)
+            if preparing && fullScreenWait {
+                loadingScreen
+            } else {
+                HStack(alignment: .center, spacing: 60) {
+                    CoverImage(path: coverPath, title: rom.displayName)
+                        .frame(width: 340, height: 460)
+                        .clipShape(.rect(cornerRadius: 16))
+                        .shadow(radius: 24, y: 12)
 
-                VStack(alignment: .leading, spacing: 20) {
-                    Text(rom.platformLabel(source: .platformName, platformNames: session.platformNames))
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                    Text(rom.displayName)
-                        .font(.largeTitle.bold())
-                        .lineLimit(3)
+                    VStack(alignment: .leading, spacing: 20) {
+                        Text(rom.platformLabel(source: .platformName, platformNames: session.platformNames))
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                        Text(rom.displayName)
+                            .font(.largeTitle.bold())
+                            .lineLimit(3)
 
-                    if let platform = offeredPlatform {
-                        playButton(platform: platform)
-                        statesSection
-                        // Side by side as equal capsules, not stacked
-                        // settings rows: RowFocusStyle is the full-width
-                        // row treatment, and two of them at their own
-                        // natural widths under a white pill read as
-                        // mismatched grey blobs (Marcus, from a photo of
-                        // the real screen). The capsule is this screen's
-                        // own secondary-action shape.
-                        HStack(spacing: 16) {
-                            if platform.cores.count > 1 {
-                                emulatorRow(platform: platform)
+                        if let platform = offeredPlatform {
+                            playButton(platform: platform)
+                            statesSection
+                            // Side by side as equal capsules, not stacked
+                            // settings rows: RowFocusStyle is the full-width
+                            // row treatment, and two of them at their own
+                            // natural widths under a white pill read as
+                            // mismatched grey blobs (Marcus, from a photo of
+                            // the real screen). The capsule is this screen's
+                            // own secondary-action shape.
+                            HStack(spacing: 16) {
+                                if platform.cores.count > 1 {
+                                    emulatorRow(platform: platform)
+                                }
+                                troubleRow
                             }
-                            troubleRow
+                        } else if platform != nil {
+                            // Supported but gated: the core exists, the
+                            // person just has not opted into it. Named
+                            // rather than generic so the fix is one
+                            // sentence away.
+                            Text("This platform is experimental. Turn on Experimental cores in Settings > Emulation to play it.")
+                                .font(.title3)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            // Every platform tvOS can't run lands here: no
+                            // native core exists for it, and unlike iOS there
+                            // is no webview player to fall back to.
+                            Text("This platform isn't supported on Apple TV yet.")
+                                .font(.title3)
+                                .foregroundStyle(.secondary)
                         }
-                    } else if platform != nil {
-                        // Supported but gated: the core exists, the
-                        // person just has not opted into it. Named
-                        // rather than generic so the fix is one
-                        // sentence away.
-                        Text("This platform is experimental. Turn on Experimental cores in Settings > Emulation to play it.")
-                            .font(.title3)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        // Every platform tvOS can't run lands here: no
-                        // native core exists for it, and unlike iOS there
-                        // is no webview player to fall back to.
-                        Text("This platform isn't supported on Apple TV yet.")
-                            .font(.title3)
-                            .foregroundStyle(.secondary)
-                    }
 
-                    if let error {
-                        Text(error)
-                            .font(.callout)
-                            .foregroundStyle(.red)
+                        if let error {
+                            Text(error)
+                                .font(.callout)
+                                .foregroundStyle(.red)
+                        }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.horizontal, 80)
-            .padding(.vertical, 60)
+                .padding(.horizontal, 80)
+                .padding(.vertical, 60)
+                }
         }
         .task { await loadStates() }
+        // Leaving this screen with a download running would leave it
+        // running for nothing, since the player it was going to present
+        // is gone with the screen. Cancelling a finished task is a no-op,
+        // so a launch that already handed off to the player is untouched.
+        .onDisappear { playTask?.cancel() }
         // A separate task from the one above on purpose: booting must
         // not wait on the save state list, which is a second round trip
         // and is not needed to start a fresh run. Guarded on the
@@ -161,7 +184,7 @@ struct TVGameLaunchView: View {
         // the explanation rather than a silent nothing.
         .task {
             guard autoStart, offeredPlatform != nil else { return }
-            await play(stateData: nil)
+            startPlaying(stateData: nil)
         }
         .onAppear { refreshCoreSettings() }
         .onChange(of: chosenCore) { _, _ in refreshCoreSettings() }
@@ -248,10 +271,62 @@ struct TVGameLaunchView: View {
         .buttonStyle(TextFocusStyle())
     }
 
+    /// The full-screen wait for a large download: the roadmap's "real
+    /// loading screen", built 2026-09-20. The same blurred cover already
+    /// behind the launch screen stays as the backdrop, and the cover
+    /// itself moves to the centre with a real bar under it, the way the
+    /// TV app fills the screen while a film buffers. Small games never
+    /// see this; see `largeDownloadBytes`.
+    ///
+    /// Focusable so the Back press reaches it: a screen with nothing to
+    /// focus has nothing for `onExitCommand` to hang off, and the press
+    /// would fall through to dismissing the whole launch screen instead
+    /// of stopping the download and staying put.
+    private var loadingScreen: some View {
+        VStack(spacing: 32) {
+            CoverImage(path: coverPath, title: rom.displayName)
+                .frame(width: 300, height: 405)
+                .clipShape(.rect(cornerRadius: 16))
+                .shadow(radius: 24, y: 12)
+            Text(rom.displayName)
+                .font(.title.bold())
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+            VStack(spacing: 14) {
+                ProgressView(value: min(max(progress, 0), 1))
+                    .progressViewStyle(.linear)
+                    .tint(.white)
+                    .frame(width: 640)
+                Text(loadingLabel)
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+            }
+            Text("Stays on this Apple TV for next time, until tvOS needs the space. Press Back to cancel.")
+                .font(.callout)
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 80)
+        .focusable()
+        .onExitCommand { playTask?.cancel() }
+    }
+
+    /// Bytes, not a bare percentage: on a television across the room a
+    /// percentage says nothing about whether to wait or go and make tea,
+    /// while "340 MB of 1.2 GB" does. Once the ROM is down the firmware
+    /// and the core's own load are what is left, short but not nothing,
+    /// so the bar stops claiming to measure them.
+    private var loadingLabel: String {
+        if progress >= 1 { return "Starting" }
+        guard progress > 0, rom.fsSizeBytes > 0 else { return "Preparing" }
+        let received = Int64(Double(rom.fsSizeBytes) * progress)
+        let format = { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) }
+        return "Downloading, \(format(received)) of \(format(rom.fsSizeBytes))"
+    }
+
     @ViewBuilder
     private func playButton(platform: NativePlatform) -> some View {
         Button {
-            Task { await play(stateData: nil) }
+            startPlaying(stateData: nil)
         } label: {
             HStack(spacing: 12) {
                 if preparing {
@@ -282,7 +357,7 @@ struct TVGameLaunchView: View {
                         // state list uses.
                         ForEach(sortedStates) { state in
                             Button {
-                                Task { await play(state: state) }
+                                startPlaying(state: state)
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(RommDate.relativeLabel(state.updatedAt))
@@ -361,18 +436,25 @@ struct TVGameLaunchView: View {
         hasCoreSettings = NativeLauncher.hasCoreSettings(romId: rom.id, core: core)
     }
 
-    private func play(state: GameState) async {
-        guard let bytes = try? await session.stateContent(state) else {
-            error = "Couldn't fetch that save state."
-            return
+    private func startPlaying(state: GameState) {
+        playTask = Task {
+            guard let bytes = try? await session.stateContent(state) else {
+                error = "Couldn't fetch that save state."
+                return
+            }
+            await play(stateData: bytes)
         }
-        await play(stateData: bytes)
+    }
+
+    private func startPlaying(stateData: Data?) {
+        playTask = Task { await play(stateData: stateData) }
     }
 
     private func play(stateData: Data?) async {
         preparing = true
         error = nil
         progress = 0
+        fullScreenWait = rom.fsSizeBytes >= Self.largeDownloadBytes && !NativeLauncher.isCached(rom: rom)
         do {
             let core = try await NativeLauncher.prepare(rom: rom, session: session) { fraction in
                 progress = fraction
@@ -381,6 +463,9 @@ struct TVGameLaunchView: View {
             launch = Launch(core: core, initialState: stateData)
         } catch {
             preparing = false
+            // A Back press, not a failure: the launch screen simply
+            // returns with nothing to explain.
+            guard !(error is CancellationError), !Task.isCancelled else { return }
             self.error = error.localizedDescription
         }
     }
