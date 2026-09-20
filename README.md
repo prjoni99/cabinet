@@ -15,7 +15,7 @@ See [Get it](#get-it) below, including the option for Apple-TV-only setups.
 
 **Latest GitHub Releases:**
 [iOS 1.0.1](https://github.com/MMagTech/cabinet/releases/tag/ios-v1.0.1) ·
-[tvOS 1.0.1](https://github.com/MMagTech/cabinet/releases/tag/tvos-v1.0.1) ·
+[tvOS 1.1.0](https://github.com/prjoni99/cabinet/releases/tag/tvos-v1.1.0) ·
 [Mac 1.0.1](https://github.com/MMagTech/cabinet/releases/tag/mac-v1.0.1)
 
 | | | |
