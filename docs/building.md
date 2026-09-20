@@ -56,6 +56,20 @@ branch. Select it as the scheme instead of `RommApp`, change its team the
 same way under Signing & Capabilities, and run it on an Apple TV or the
 tvOS Simulator. Pairing with RomM works the same device-flow way as iOS.
 
+Changing the team is not enough on its own, because bundle identifiers
+and App Group identifiers are unique across every Apple developer
+team: nobody else can register the ones a project already owns, and
+Xcode reports it as "No profiles were found" and "No Account for
+Team". A fork has to carry its own, in four places that must agree:
+every target's `PRODUCT_BUNDLE_IDENTIFIER` in the project, the group
+named in each `.entitlements` file, and the two Swift constants that
+open that group, `TopShelfSnapshot.appGroup` and
+`WidgetSnapshot.suite`. This fork did exactly that on 2026-09-20,
+`com.prjoni99.*` and `group.com.prjoni99.cabinet` under team
+53MUTM55LC. The `UserDefaults` keys, which also carry the upstream
+prefix, are storage keys rather than identity and stay as they are:
+renaming them is a persisted data format change.
+
 **LayoutEditor** is a separate tool for editing the on-screen control layouts in
 `RommApp/RommApp/Resources/ControlLayouts`. It is a development utility, it is
 not part of either app, and it is not in the released build. You can ignore it.

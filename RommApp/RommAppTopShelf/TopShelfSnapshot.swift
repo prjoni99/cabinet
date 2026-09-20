@@ -27,10 +27,10 @@ enum TopShelfSnapshot {
     /// Must match the App Groups capability on both the tvOS app and the
     /// extension. Not derived from the bundle id on purpose: Debug and
     /// Release ship under two different bundle ids
-    /// (`com.mmagtech.CabinetDev.tv` and `com.mmagtech.Cabinet`) and both
+    /// (`com.prjoni99.CabinetDev.tv` and `com.prjoni99.Cabinet`) and both
     /// need to reach the same container, or a dev build would write a
     /// snapshot the release build's extension cannot see.
-    static let appGroup = "group.com.mmagtech.Cabinet"
+    static let appGroup = "group.com.prjoni99.cabinet"
 
     private static let snapshotKey = "com.mmagtech.RommAppTV.topShelfSnapshot"
 

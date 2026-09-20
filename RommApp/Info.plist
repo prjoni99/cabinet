@@ -8,7 +8,7 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>com.mmagtech.Cabinet.link</string>
+			<string>com.prjoni99.Cabinet.link</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>cabinet</string>
