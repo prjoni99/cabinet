@@ -122,17 +122,19 @@ enum NativeLauncher {
         let romURL = workDir.appendingPathComponent(rom.fsName)
         try await download(session.romContentRequest(rom), to: romURL, onProgress: onProgress)
 
-        var downloadedFirmwareURLs: [URL] = []
-        if let firmwareList = try? await session.firmware(platformId: rom.platformId) {
-            for firmware in firmwareList where !firmware.missingFromFS {
-                let url = workDir.appendingPathComponent(firmware.fileName)
-                if (try? await download(session.firmwareContentRequest(firmware), to: url)) != nil {
-                    downloadedFirmwareURLs.append(url)
-                }
-            }
+        // From the device's own shelf, which downloads a platform's
+        // firmware once rather than once per launch (see FirmwareShelf).
+        // A list that cannot be fetched at all is tolerated exactly as
+        // it was when each file was fetched here: the core boots with no
+        // BIOS and reports that itself if it needed one.
+        var firmwareURLs: [URL] = []
+        if let shelved = try? await FirmwareShelf.files(
+            platformId: rom.platformId, session: session, requireAll: false
+        ) {
+            firmwareURLs = FirmwareShelf.place(shelved, in: workDir)
         }
 
-        stageFirmware(from: downloadedFirmwareURLs, in: workDir, platform: platform)
+        stageFirmware(from: firmwareURLs, in: workDir, platform: platform)
 
         return try await finishLaunch(
             platform: platform, rom: rom, session: session, romURL: romURL, workDir: workDir

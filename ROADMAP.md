@@ -112,17 +112,20 @@ worth having in the open.
 Things that work but waste effort, with a known fix rather than an open
 question.
 
-- **The BIOS gets downloaded more often than it needs to be.** A
-  platform's firmware comes down once per game on Apple TV, and on
-  iPhone once per launch for any game you have not kept. Kept games
-  already do the right thing: firmware is shelved in one folder per
-  platform and nothing is downloaded at launch. The fix is to point the
-  other two paths at that same shelf, so the pattern already exists in
-  the code. Nothing is broken, and a BIOS is small next to a CD game,
-  but across a full arcade library it adds up to a few hundred megabytes
-  of redundant downloads and duplicated cache. A second, smaller part of
-  the same fix is only downloading firmware the platform's core actually
-  uses, rather than everything the server lists for it.
+- **Firmware the platform's core never reads still comes down.** The
+  larger half of this edge is fixed, 2026-09-20: a platform's firmware
+  now lands on one shelf per platform on the device and is fetched
+  once, whether the game is launched on Apple TV, launched unkept on
+  iPhone, or kept, where it used to come down once per game or once
+  per launch. What is left is that every file the server lists for a
+  platform is still fetched, not only the ones the core will look for.
+  Not built along with the shelf because it is not safe from the
+  launcher's own BIOS table alone: an arcade board's BIOS set
+  (neogeo.zip and its kind) is served as firmware under whatever name
+  it was uploaded with, and FBNeo and MAME find it by that name, so a
+  filter built from the table of CD console BIOS names would quietly
+  break Neo Geo. It needs a per-core inventory of what each one reads
+  from its system directory first.
 
 A few ideas got explored just as seriously and reached a real answer
 instead of an open question. Those live in

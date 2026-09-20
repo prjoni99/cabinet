@@ -89,12 +89,17 @@ struct Firmware: Decodable, Identifiable, Hashable {
     let fileName: String
     let isVerified: Bool
     let missingFromFS: Bool
+    /// What `FirmwareShelf` checks a shelved copy against. Optional so a
+    /// server that stops reporting it, or never did, still decodes; the
+    /// shelf then trusts the name alone.
+    let fileSizeBytes: Int64?
 
     enum CodingKeys: String, CodingKey {
         case id
         case fileName = "file_name"
         case isVerified = "is_verified"
         case missingFromFS = "missing_from_fs"
+        case fileSizeBytes = "file_size_bytes"
     }
 }
 

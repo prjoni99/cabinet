@@ -992,13 +992,13 @@ final class KeptGameStore: ObservableObject {
             }
             #endif
 
-            var firmwareURLs: [URL] = []
-            let firmwareList = try await session.firmware(platformId: rom.platformId)
-            for firmware in firmwareList where !firmware.missingFromFS {
-                let url = staging.appendingPathComponent(firmware.fileName)
-                _ = try await FileDownloader.download(session.firmwareContentRequest(firmware), to: url, onProgress: nil)
-                firmwareURLs.append(url)
-            }
+            // From the device's shelf, so a platform's firmware comes
+            // down once however many games are kept on it. Strict, per
+            // the note on `keep`.
+            let shelved = try await FirmwareShelf.files(
+                platformId: rom.platformId, session: session, requireAll: true
+            )
+            let firmwareURLs = FirmwareShelf.place(shelved, in: staging)
             let canonicalSlug = rom.canonicalPlatformSlug(platformsVersions: session.platformsVersions)
             if let platform = NativePlatform.platform(for: rom, canonicalSlug: canonicalSlug) {
                 NativeLauncher.stageFirmware(from: firmwareURLs, in: staging, platform: platform)
